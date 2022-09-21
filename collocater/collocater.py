@@ -105,7 +105,7 @@ class Collocater():
     
     def __init__(self, 
                  irr_verbs, prepositions, collocations_dictionary=None,
-                 chosen_collocation_types=None, chosen_word_types='both',
+                 chosen_collocation_types=None, chosen_word_types='all',
                  tags_dict=None, spacy_model='en_core_web_sm'):
         
         
@@ -514,7 +514,6 @@ class Collocater():
         """
     
         collocations = self.collocate(word)
-        
         if not collocations:
             return {}
         
@@ -522,8 +521,59 @@ class Collocater():
         tags_dict['this_word'] = word
     
         text = regex.sub(r"\band\b", '&&', regex.sub(r"\bor\b", "@@", text))
-    
-        if morpho == 'noun' and collocations.get('noun'):
+        if morpho == 'adj' and collocations.get('adj.'):
+            word1 = Collocater._adject_regulater(word)
+            adj, post_verb, post_noun, quant, pre_verb = '', '', '', '', ''
+
+            if collocations.get('adj.').get('ADV.'):
+                a = list(set(sum(collocations.get('adj.').get('ADV.'), [])))
+                b = [e for e in a if not (e == 'well' or len(e) <= 3)]
+                if b:
+                    adv = (f"({word1})" + r"(\s[\w\*\-\'\&\@]+){0,3}\s" +
+                           "({0})|({1})".format('|'.join(list(map(regex.escape, a))), '|'.join(list(map(regex.escape, b)))) + 
+                           r"(\s[\w\*\-\'\&\@]+){0,3}\s" + f"({word1})")
+                else:
+                    adv = ''
+            else:
+                adv = ''  
+            
+            if collocations.get('adj.').get('PREP.'):
+                a = list(set(sum(collocations.get('adj.').get('PREP.'), [])))
+                prep =  prep = f"{word1}"  + r"(\s[\w\*\-]+){0,1}\s" + "({0})".format('|'.join(list(map(regex.escape, a))))
+            else:
+                prep = ''
+            
+            if collocations.get('adj.').get('PHRASES'):
+                a = sum(collocations.get('adj.').get('PHRASES'), [])
+                phr = "{0}".format('|'.join(list(map(regex.escape, a))))
+            else:
+                phr = ''
+
+            if collocations.get('adj.').get('VERBS'):
+                a = set(sum(collocations.get('adj.').get('VERBS'), []))
+                b = [e for e in a if not e in ['have', 'be']]
+                if b:
+                    c = Collocater._looper(b, Collocater._verbal_regulater, irr_vbs=self.irr_verbs)
+                    d = regex.sub(r'(\\ )?__[A-Z_]+__', '', c)
+                    e = regex.sub(r'(?<=\()\||\|(?=\))', '', regex.sub(r'\|+', '|', 
+                                  regex.sub(r'((?<=|)(ing|\w+ing))', '', d)))
+                    
+                    relevant_preps = set(regex.findall(r'(?<=\s)[a-z]+(?=_)', '_'.join(a)))
+                    prepositions0 = [p for p in self.prepositions if not p in relevant_preps]
+                    prep_re1 = '|'.join(self.prepositions)
+                    prep_re = '|'.join(prepositions0)
+                    
+                    pre_verb = (f"(({c})" + r"(\s(?!(?:(" + f'{prep_re}' + r")\s))[\w\*\-\']+){0,3}\s" + f"{word1}" + ')|(' +
+                                f"{word1}" + r"(\s(?!(?:(" + f'{prep_re1}' + r")\s))[\w\*\-\']+){0,5}\s" + f"({e})"+ ')|(' +
+                                f"{word1}" + r"(\s(?!(?:(" + f'{prep_re1}' + r")\s))[\w\*\-\']+){1,4}\s" +
+                                r"((is|was|were|been)(\s\w+ing\s" + f'({prep_re1})' + r")?|to\sbe)\s" + 
+                                f"({d}))")
+                else:
+                    pre_verb = ''
+            else:
+                pre_verb = ''
+                
+        elif morpho == 'noun' and collocations.get('noun'):
             word1 = Collocater._noun_regulater(word)
             adv = ''
     
@@ -713,13 +763,13 @@ class Collocater():
             raise ValueError("The inputted text must either be a string or a spacy.tokens.doc.Doc object") 
             
             
-        if self.chosen_word_types == 'both':
-            lookups0 = [{i: (t.orth_, t.lemma_, t.pos_.lower())} for i, t in enumerate(doc) if t.pos_ in ['NOUN','VERB']]
+        if self.chosen_word_types == 'all':
+            lookups0 = [{i: (t.orth_, t.lemma_, t.pos_.lower())} for i, t in enumerate(doc) if t.pos_ in ['NOUN','VERB','ADJ']]
         else:
             lookups0 = [{i: (t.orth_, t.lemma_, t.pos_.lower())} for i, t in enumerate(doc) if t.pos_ == self.chosen_word_types.upper()]
 
         lookups = {k: v for d in lookups0 for k, v in d.items()}
-
+    
         doc[0].set_extension('colloc', force=True, default={})
         doc.set_extension('collocs', force=True, default=[])
         
@@ -767,4 +817,16 @@ class Collocater():
     
     
 
+if __name__ == "__main__":
+    from spacy.language import Language
 
+    collie = Collocater.loader('/Users/marcdinh/collocater/collocater/data/collocater_obj.joblib')
+    #print(collie.collocations_identifier(word='misfortune', text='The expedition was dogged by misfortune. I had the misfortune to share a room with someone who snored loudly. ', morpho='noun'))
+
+    Language.component('collocater', func = collie)
+    nlp = spacy.load('en_core_web_trf')
+    nlp.add_pipe('collocater')
+
+    text = 'My girlfriend has had a Canadian penpal called Eddie since she was in her early teens. That\'s OK. I also exchanged letters with Monique from France and Shauna from Australia until I went to university. But I got involved in the excitement of university life and lost touch with them. '
+    doc = nlp(text)
+    print(doc._.collocs)
