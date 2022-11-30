@@ -769,7 +769,6 @@ class Collocater():
             lookups0 = [{i: (t.orth_, t.lemma_, t.pos_.lower())} for i, t in enumerate(doc) if t.pos_ == self.chosen_word_types.upper()]
 
         lookups = {k: v for d in lookups0 for k, v in d.items()}
-    
         doc[0].set_extension('colloc', force=True, default={})
         doc.set_extension('collocs', force=True, default=[])
         
@@ -790,7 +789,7 @@ class Collocater():
                         if interin:
                             e = 0
                             for rule_name in interin:
-                                matcher.add('_'.join([lemma, morpho, k, str(e)]), None, nlp(rule_name))
+                                matcher.add('_'.join([lemma, morpho, k, str(e)]), None, nlp.make_doc(rule_name)) #NOTE: implement nlp.tokenizer.pipe for additional speed boost
                                 labels.setdefault(rule_name, []).append('{0}_{1}__{2}'.format(lemma, morpho, k))
                                 e += 1
                             this_colls[k] = list(interin)
@@ -820,13 +819,15 @@ class Collocater():
 if __name__ == "__main__":
     from spacy.language import Language
 
-    collie = Collocater.loader('/Users/marcdinh/collocater/collocater/data/collocater_obj.joblib')
+    collie = Collocater.loader('collocater/data/collocater_obj.joblib')
     #print(collie.collocations_identifier(word='misfortune', text='The expedition was dogged by misfortune. I had the misfortune to share a room with someone who snored loudly. ', morpho='noun'))
 
     Language.component('collocater', func = collie)
-    nlp = spacy.load('en_core_web_trf')
+    nlp = spacy.load('en_core_web_sm')
     nlp.add_pipe('collocater')
 
-    text = 'My girlfriend has had a Canadian penpal called Eddie since she was in her early teens. That\'s OK. I also exchanged letters with Monique from France and Shauna from Australia until I went to university. But I got involved in the excitement of university life and lost touch with them. '
+    text = 'After giving Mark a lift to the airport, Cathy made her way home. What an exciting life he led! At times Cathy felt desperately jealous of him. She spent her time doing little more than taking care of him and the children. Now her sister was getting divorced and would doubtless be making demands on her too. Cathy had promised to give her sister a call as soon as she got home but she decided to run herself a bath first. She had a sharp pain in her side and hoped that a hot bath might ease the pain. After giving her sister a ring Cathy went to bed.'
     doc = nlp(text)
+    #print(collie(text))
     print(doc._.collocs)
+    print(doc[4]._.colloc)
