@@ -6,6 +6,12 @@ Collocater can be added as a pipeline component to SpaCy's preprocessing pipelin
 
 Check out [Collocations Finder](https://collocations-finder.appspot.com/) to learn more about the project.
 
+## Changelog
+
+- changed some regex, added adj collocations
+- Added more collocations in dictionary
+- trimmed spaCy pipeline to optimize pattern loading
+
 ## Installation
 
 ```bash
